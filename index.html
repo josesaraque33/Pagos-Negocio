@@ -1,0 +1,197 @@
+import { useState, useCallback } from "react";
+
+const today = new Date();
+
+function getMondayOf(d) {
+  const day = d.getDay();
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+  const m = new Date(d);
+  m.setDate(diff);
+  return m;
+}
+
+function fmtDate(d) {
+  return d.toLocaleDateString("es-CO", { day: "numeric", month: "short" });
+}
+
+function getWeekRange(offset) {
+  const mon = getMondayOf(today);
+  mon.setDate(mon.getDate() + offset * 7);
+  const sun = new Date(mon);
+  sun.setDate(mon.getDate() + 6);
+  return { start: new Date(mon), end: new Date(sun) };
+}
+
+function buildWeeks() {
+  return Array.from({ length: 4 }, (_, i) => {
+    const offset = i - 3;
+    const { start, end } = getWeekRange(offset);
+    return {
+      id: i,
+      label: `Semana del ${fmtDate(start)}`,
+      dateRange: `${fmtDate(start)} – ${fmtDate(end)}`,
+      paid: false,
+      isOverdue: offset < 0,
+    };
+  });
+}
+
+export default function PagosSemana() {
+  const [weeks, setWeeks] = useState(buildWeeks);
+
+  const togglePaid = useCallback((id) => {
+    setWeeks((prev) =>
+      prev.map((w) => (w.id === id ? { ...w, paid: !w.paid } : w))
+    );
+  }, []);
+
+  const addWeek = useCallback(() => {
+    setWeeks((prev) => {
+      const offset = prev.length - 3;
+      const { start, end } = getWeekRange(offset);
+      return [
+        ...prev,
+        {
+          id: prev.length,
+          label: `Semana del ${fmtDate(start)}`,
+          dateRange: `${fmtDate(start)} – ${fmtDate(end)}`,
+          paid: false,
+          isOverdue: false,
+        },
+      ];
+    });
+  }, []);
+
+  const paid = weeks.filter((w) => w.paid).length;
+  const overdue = weeks.filter((w) => !w.paid && w.isOverdue).length;
+  const pending = weeks.filter((w) => !w.paid && !w.isOverdue).length;
+
+  return (
+    <div style={{ maxWidth: 560, margin: "0 auto", padding: "2rem 1.5rem", fontFamily: "system-ui, sans-serif" }}>
+      {/* Header */}
+      <div style={{ marginBottom: "1.75rem" }}>
+        <h1 style={{ fontSize: 22, fontWeight: 600, margin: 0, color: "#111" }}>Pagos semana</h1>
+        <p style={{ fontSize: 14, color: "#888", marginTop: 4 }}>
+          Marca las semanas en que recibiste pago
+        </p>
+      </div>
+
+      {/* Summary */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 10, marginBottom: "1.75rem" }}>
+        {[
+          { label: "Recibidos", value: paid, color: "#1D9E75" },
+          { label: "Pendientes", value: pending, color: "#111" },
+          { label: "Atrasados", value: overdue, color: "#BA7517" },
+        ].map(({ label, value, color }) => (
+          <div
+            key={label}
+            style={{
+              background: "#f5f5f4",
+              borderRadius: 10,
+              padding: "12px 14px",
+            }}
+          >
+            <div style={{ fontSize: 11, color: "#999", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 4 }}>
+              {label}
+            </div>
+            <div style={{ fontSize: 24, fontWeight: 600, color }}>{value}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Week list */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: "1rem" }}>
+        {weeks.map((w) => {
+          const accentColor = w.paid ? "#1D9E75" : w.isOverdue ? "#D85A30" : "#e0e0e0";
+          const badgeBg = w.paid ? "#E1F5EE" : w.isOverdue ? "#FAECE7" : "#f0f0f0";
+          const badgeColor = w.paid ? "#0F6E56" : w.isOverdue ? "#993C1D" : "#888";
+          const badgeText = w.paid ? "Recibido" : w.isOverdue ? "Atrasado" : "Pendiente";
+
+          return (
+            <div
+              key={w.id}
+              onClick={() => togglePaid(w.id)}
+              style={{
+                background: "#fff",
+                border: "1px solid #ebebeb",
+                borderLeft: `3px solid ${accentColor}`,
+                borderRadius: 12,
+                padding: "13px 16px",
+                display: "flex",
+                alignItems: "center",
+                gap: 14,
+                cursor: "pointer",
+                transition: "border-color 0.15s",
+              }}
+            >
+              {/* Checkbox */}
+              <div
+                style={{
+                  width: 26,
+                  height: 26,
+                  borderRadius: "50%",
+                  border: w.paid ? "none" : "1.5px solid #ccc",
+                  background: w.paid ? "#1D9E75" : "transparent",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flexShrink: 0,
+                  transition: "all 0.15s",
+                }}
+              >
+                {w.paid && (
+                  <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+                    <path d="M2.5 6.5L5.5 9.5L10.5 4" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                )}
+              </div>
+
+              {/* Info */}
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 14, fontWeight: 500, color: "#111" }}>{w.label}</div>
+                <div style={{ fontSize: 12, color: "#aaa", marginTop: 2 }}>{w.dateRange}</div>
+              </div>
+
+              {/* Badge */}
+              <span
+                style={{
+                  fontSize: 11,
+                  fontWeight: 500,
+                  padding: "3px 9px",
+                  borderRadius: 20,
+                  background: badgeBg,
+                  color: badgeColor,
+                  flexShrink: 0,
+                }}
+              >
+                {badgeText}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Add week */}
+      <button
+        onClick={addWeek}
+        style={{
+          width: "100%",
+          padding: "10px",
+          border: "1px dashed #ccc",
+          borderRadius: 10,
+          background: "transparent",
+          cursor: "pointer",
+          color: "#aaa",
+          fontSize: 13,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 6,
+          fontFamily: "inherit",
+        }}
+      >
+        + Agregar semana
+      </button>
+    </div>
+  );
+}
