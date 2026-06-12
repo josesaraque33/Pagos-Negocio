@@ -1,0 +1,132 @@
+
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  .app { padding: 1.5rem 0; max-width: 680px; font-family: var(--font-sans); }
+  .header { margin-bottom: 1.5rem; }
+  .header h1 { font-size: 22px; font-weight: 500; color: var(--color-text-primary); }
+  .header p { font-size: 14px; color: var(--color-text-secondary); margin-top: 4px; }
+  .summary-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 1.5rem; }
+  .metric { background: var(--color-background-secondary); border-radius: var(--border-radius-md); padding: 12px 14px; }
+  .metric-label { font-size: 12px; color: var(--color-text-secondary); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.03em; }
+  .metric-value { font-size: 22px; font-weight: 500; color: var(--color-text-primary); }
+  .metric-value.green { color: #1D9E75; }
+  .metric-value.amber { color: #BA7517; }
+  .week-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 1.25rem; }
+  .week-card { background: var(--color-background-primary); border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-lg); padding: 14px 16px; display: flex; align-items: center; gap: 14px; cursor: pointer; transition: border-color 0.15s; }
+  .week-card:hover { border-color: var(--color-border-secondary); }
+  .week-card.paid { border-left: 3px solid #1D9E75; }
+  .week-card.pending { border-left: 3px solid var(--color-border-tertiary); }
+  .week-card.overdue { border-left: 3px solid #D85A30; }
+  .check-btn { width: 28px; height: 28px; border-radius: 50%; border: 1.5px solid var(--color-border-secondary); background: transparent; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: all 0.15s; color: var(--color-text-secondary); font-size: 15px; }
+  .check-btn.checked { background: #1D9E75; border-color: #1D9E75; color: white; }
+  .week-info { flex: 1; }
+  .week-label { font-size: 14px; font-weight: 500; color: var(--color-text-primary); }
+  .week-dates { font-size: 12px; color: var(--color-text-secondary); margin-top: 2px; }
+  .status-badge { font-size: 11px; padding: 3px 9px; border-radius: 20px; font-weight: 500; flex-shrink: 0; }
+  .badge-paid { background: #E1F5EE; color: #0F6E56; }
+  .badge-pending { background: var(--color-background-secondary); color: var(--color-text-secondary); }
+  .badge-overdue { background: #FAECE7; color: #993C1D; }
+  .add-week-btn { width: 100%; padding: 10px; border: 0.5px dashed var(--color-border-secondary); border-radius: var(--border-radius-md); background: transparent; cursor: pointer; color: var(--color-text-secondary); font-size: 13px; display: flex; align-items: center; justify-content: center; gap: 6px; transition: background 0.15s; font-family: var(--font-sans); }
+  .add-week-btn:hover { background: var(--color-background-secondary); }
+</style>
+
+<div class="app" role="main">
+  <h2 class="sr-only" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)">Checklist semanal de pagos recibidos</h2>
+
+  <div class="header">
+    <h1>Pagos semana</h1>
+    <p>Marca las semanas en que recibiste pago</p>
+  </div>
+
+  <div class="summary-row" id="summary"></div>
+  <div class="week-list" id="week-list"></div>
+  <button class="add-week-btn" onclick="addWeek()">
+    <i class="ti ti-plus" aria-hidden="true"></i> Agregar semana
+  </button>
+</div>
+
+<script>
+  const today = new Date();
+  function getMondayOf(d) {
+    const day = d.getDay();
+    const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+    const m = new Date(d);
+    m.setDate(diff);
+    return m;
+  }
+  function fmtDate(d) {
+    return d.toLocaleDateString('es-CO', { day: 'numeric', month: 'short' });
+  }
+  function getWeekRange(offset) {
+    const mon = getMondayOf(today);
+    mon.setDate(mon.getDate() + offset * 7);
+    const sun = new Date(mon);
+    sun.setDate(mon.getDate() + 6);
+    return { start: new Date(mon), end: new Date(sun) };
+  }
+
+  let weeks = [];
+  for (let i = -3; i <= 0; i++) {
+    const { start, end } = getWeekRange(i);
+    weeks.push({
+      id: i + 3,
+      label: `Semana del ${fmtDate(start)}`,
+      dateRange: `${fmtDate(start)} – ${fmtDate(end)}`,
+      paid: false,
+      isOverdue: i < 0
+    });
+  }
+
+  function renderSummary() {
+    const paid = weeks.filter(w => w.paid).length;
+    const pending = weeks.filter(w => !w.paid && !w.isOverdue).length;
+    const overdue = weeks.filter(w => !w.paid && w.isOverdue).length;
+    document.getElementById('summary').innerHTML = `
+      <div class="metric"><div class="metric-label">Recibidos</div><div class="metric-value green">${paid}</div></div>
+      <div class="metric"><div class="metric-label">Pendientes</div><div class="metric-value">${pending}</div></div>
+      <div class="metric"><div class="metric-label">Atrasados</div><div class="metric-value amber">${overdue}</div></div>
+    `;
+  }
+
+  function renderWeeks() {
+    document.getElementById('week-list').innerHTML = weeks.map(w => {
+      const statusClass = w.paid ? 'paid' : (w.isOverdue ? 'overdue' : 'pending');
+      const badgeClass = w.paid ? 'badge-paid' : (w.isOverdue ? 'badge-overdue' : 'badge-pending');
+      const badgeText = w.paid ? 'Recibido' : (w.isOverdue ? 'Atrasado' : 'Pendiente');
+      return `<div class="week-card ${statusClass}" onclick="togglePaid(${w.id})">
+        <button class="check-btn ${w.paid ? 'checked' : ''}" aria-label="Marcar semana como ${w.paid ? 'no recibida' : 'recibida'}">
+          ${w.paid ? '<i class="ti ti-check" aria-hidden="true"></i>' : ''}
+        </button>
+        <div class="week-info">
+          <div class="week-label">${w.label}</div>
+          <div class="week-dates">${w.dateRange}</div>
+        </div>
+        <span class="status-badge ${badgeClass}">${badgeText}</span>
+      </div>`;
+    }).join('');
+  }
+
+  function togglePaid(id) {
+    const w = weeks.find(x => x.id === id);
+    if (w) { w.paid = !w.paid; }
+    renderWeeks();
+    renderSummary();
+  }
+
+  function addWeek() {
+    const offset = weeks.length - 3;
+    const { start, end } = getWeekRange(offset);
+    weeks.push({
+      id: weeks.length,
+      label: `Semana del ${fmtDate(start)}`,
+      dateRange: `${fmtDate(start)} – ${fmtDate(end)}`,
+      paid: false,
+      isOverdue: false
+    });
+    renderWeeks();
+    renderSummary();
+  }
+
+  renderSummary();
+  renderWeeks();
+</script>
